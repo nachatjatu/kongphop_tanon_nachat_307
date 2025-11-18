@@ -5,7 +5,7 @@ It is important to note why we require the $\varepsilon$ ball constraint: if our
 Thus, we proceed to formulating the problem. Suppose there are $N_a$ accident locations, $N_d$ depot locations, $N_t$ TMC locations, which define a directed graph $G = (V, E)$ where $|V| = N_a + N_d + N_t$. 
 
 Each data point is a tuple $(A_t, C_t)$ where $A_t \in \{0, 1\}^{N_a}$ encodes whether an accident occurred at each accident location and $C_t \in \{1, 2, 3\}^{|E|}$ assigns a _congestion level_ from 1-3 to each edge.
-Define $\mathcal{A}, \mathcal{C}$ as the spaces of accident and congestion scenarios, respectively. Then, our $N$ data points define an empirical distribution over $\mathcal{A} \times \mathcal{C}$, given by
+Define $\mathcal{Z} = \mathcal{A}, \mathcal{C}$ as the spaces of accident and congestion scenarios, respectively. Then, our $N$ data points define an empirical distribution over $\mathcal{Z}$, given by
 
 $$
 \hat{\mathbb{P}} = \frac{1}{N} \sum_{i=1}^N \delta_{(A_i, C_i)}
@@ -19,7 +19,39 @@ $$
 \inf_{y \in \{0, 1\}^M} \sup_{\mathbb{Q} \in \mathbb{B}_{\varepsilon, p}(\hat{\mathbb{P}}_N)}f(\mathbb{Q}, y)
 $$
 
-where $f$ is the loss function. In our problem, we can define $f$ as the _expected response time_, so that
+where $f$ is the loss function. To use the Wasserstein DRO, we need to define a metric on $\mathcal{Z}$. First, note that $\mathcal{C}$ is discrete but with meaningful values, so a natural metric for it is 
+
+$$
+d_C(c_1, c_2) = \| c_2 - c_1 \|_1 = \sum_{i=1}^{|E|} |c_{2i} - c_{1i}|.
+$$
+
+Now, $\mathcal{A}$ is a little more difficult because it encodes accidents that are distributed throughout space. To do this, we can use the 1-Wasserstein distance; treat accident scenario $a$ as a distribution
+
+$$
+P_a = \frac{1}{\sum_{i: a_i=1}} \sum_{j: a_j = 1} \delta_j
+$$
+
+so that the 1-Wasserstein distance is
+
+$$
+d_A(a_1, a_2) = W_1(P_{a_1}, P_{a_2}).
+$$
+
+Thus a metric on $\mathcal{Z}$ is given by
+
+$$
+d((a_1, c_1), (a_2, c_2)) = d_A(a_1, a_2) + \lambda \|c_2 - c_1 \| 
+$$
+
+where $\lambda > 0$ is a scaling factor.
+
+and the Wasserstein distance is defined by the metric $d: \mathcal{Z} \times \mathcal{Z} \to \mathbb{R}$ where
+
+$$
+d((a_1, c_1), (a_2, c_2)) =  + \|c_2 - c_1\|_1
+$$
+
+In our problem, we can define $f$ as the _expected response time_, so that
 
 $$
 f(\mathbb{Q}, y) = \mathbb{E}_{(a, c) \sim \mathbb{Q}}[t(y, a, c)]
@@ -27,7 +59,7 @@ $$
 
 where $t(y,a,c)$ is the deterministic _____ response time across accidents $a$ under congestion $c$ and deployment $y$. 
 
-If we take $t$ to be the _average response time_ so that 
+We can take $t$ to be the _average response time_ so that 
 
 $$
 t(y, a, c) = \frac{1}{\sum_i a_i} \sum_{j: a_j = 1} \tau(y, j|c)
