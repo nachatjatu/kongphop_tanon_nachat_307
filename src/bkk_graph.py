@@ -1,8 +1,12 @@
+import uuid
+
+import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 import osmnx as ox
+import pandas as pd
 from shapely.geometry import LineString, Point
 from shapely.ops import substring
-import uuid
 
 
 class BKKGraph:
@@ -21,12 +25,7 @@ class BKKGraph:
     def load_base_graph(self, nodes, edges):
         """Load base graph of TMC nodes (type='T') and congestion edges."""
         for loc_code, row in nodes.iterrows():
-            self.G.add_node(
-                loc_code,
-                x=row["lon"],
-                y=row["lat"],
-                vtype="T"
-            )
+            self.G.add_node(loc_code, x=row["lon"], y=row["lat"], vtype="T")
 
         for _, row in edges.iterrows():
             u = row["start_loc"]
@@ -45,7 +44,8 @@ class BKKGraph:
             attrs["parent_id"] = f"{u}->{v}"
             attrs["is_subedge"] = False  # original T→T
 
-            self.G.add_edge(u, v, **attrs)
+            if p1 != p2:
+                self.G.add_edge(u, v, **attrs)
 
     # ----------------------------------------------------------------------
     # 2. Helper: snap projection to endpoints
@@ -89,19 +89,9 @@ class BKKGraph:
         attrs["is_subedge"] = True
 
         # Add subedges with updated geometry + length
-        self.G.add_edge(
-            u, new_node,
-            **attrs,
-            geometry=part1,
-            length=part1.length
-        )
+        self.G.add_edge(u, new_node, **attrs, geometry=part1, length=part1.length)
 
-        self.G.add_edge(
-            new_node, v,
-            **attrs,
-            geometry=part2,
-            length=part2.length
-        )
+        self.G.add_edge(new_node, v, **attrs, geometry=part2, length=part2.length)
 
     # ----------------------------------------------------------------------
     # 4. Add depot/accident points and split edges
@@ -141,3 +131,9 @@ class BKKGraph:
             if self.G.has_edge(v, u):
                 edge_rev = self.G[v][u]
                 self.split_edge(v, u, edge_rev, proj_pt, new_node)
+
+
+if __name__ == "__main__":
+    node_df = pd.read_csv("processed_data/bkk_loc_table.csv")
+    edge_df = pd.read_csv("processed_data/bkk_edge_table.csv")
+    BKKGraph(node_df, edge_df)
