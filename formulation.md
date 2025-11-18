@@ -74,13 +74,78 @@ We can write $\tau$ as a minimization problem $\tau(y, j|c) = \min_{i: y_i = 1} 
 **Thus our optimization problem is given by**
 
 $$
-\min_{y \in \{0, 1\}^M} \sup_{\mathbb{Q} \in \mathbb{B}_{\varepsilon, p}(\hat{\mathbb{P}}_N)} \mathbb{E}_{(a,c) \sim \mathbb{Q}} \left[\frac{1}{\sum_i a_i} \sum_{j: a_j = 1} \min_{i: y_i = 1} T(i, j|c) \right]
+\min_{y \in \{0, 1\}^M} \sup_{\mathbb{Q} \in \mathbb{B}_{\varepsilon, p}(\hat{\mathbb{P}}_N)} \mathbb{E}_{(a,c) \sim \mathbb{Q}} \left[ t(y,a,c)\right]
 $$
 
+# 4. Dualizing the DRO
+For convenience, write $l(z) =t(y,z)$ where $z = (a,c)$, thus we have
 
+$$
+\min_{y \in \{0, 1\}^M} \sup_{\mathbb{Q} \in \mathbb{B}_{\varepsilon, p}(\hat{\mathbb{P}}_N)} \mathbb{E}_{(a,c) \sim \mathbb{Q}} \left[ l(z)\right]
+$$
 
+By Theorem 7 in (Kuhn et al., 2019), we can re-write with Strong Duality
 
+$$
+\sup_{\mathbb{Q} \in \mathbb{B}_{\varepsilon, p}(\hat{\mathbb{P}}_N)} \mathbb{E}_{\mathbb{Q}} \left[ l(Z)\right] = \inf_{\gamma \geq 0}\mathbb{E}^{\hat{\mathbb{P}}_N}[l_\gamma(\xi_i)] + \gamma \varepsilon^p =\inf_{\gamma \geq 0}\left[\frac{1}{N} \sum_{i=1}^N l_\gamma(\xi_i) + \gamma \varepsilon^p\right]
+$$
 
+where $l_\gamma(\xi_i) = \sup_{z \in \mathbb{Z}} [l(z) - \gamma d(z, \xi_i)^p]$. Choosing $p=1$, we have the dualized DRO
+
+$$
+\min_{y \in \{0, 1\}^M, \gamma \geq 0} \left[ \frac{1}{N} \sum_{i=1}^N \sup_{z \in \mathbb{Z}} [l(z) - \gamma d(z, \xi_i)] + \gamma \varepsilon \right]
+$$
+
+# 5. Manipulaing the DRO to get single-level optimization
+If we write the expression in full, we get
+
+$$
+\begin{aligned}
+&\min_{y \in \{0, 1\}^M, \gamma \geq 0} \left[ \frac{1}{N} \sum_{i=1}^N \sup_{(a,c) \in \mathbb{Z}} [t(y, a, c) - \gamma d((a, c), (A_i, C_i))] + \gamma \varepsilon \right] \\
+&\quad = \min_{y \in \{0, 1\}^M, \gamma \geq 0} \left[ \frac{1}{N} \sum_{i=1}^N \sup_{(a,c) \in \mathbb{Z}} [\frac{1}{|a|}\sum_{k \in A(a)} \min_{j \in D(y)} T(j, k | c) - \gamma d((a, c), (A_i, C_i))] + \gamma \varepsilon \right]  
+\end{aligned}
+$$
+
+which is awful and nasty and should never be looked at. But we must. 
+
+Observe that $D(y)$--the set of open depots under deployment $y$--is a finite set. Then, we can linearize $\min_{j \in D(y)} T(j, k | c)$ by introducing assignment variables $x_{jk}$ such that $x_{jk} = 1$ if depot $j$ serves accident site $k$, and constrain
+
+$$
+\begin{aligned}
+\sum_{k}x_{jk} &= 1 \quad \text{each accident is served}\\
+x_{jk} &\leq y_j \quad \text{only open depots can serve accidents}
+\end{aligned}
+$$
+
+rewrite
+
+$$
+\min_{j \in D(y)} T(j, k | c) = \sum_{j} T(j, k | c) x_{jk}
+$$
+
+so we have
+
+$$
+\begin{aligned}
+\min_{y \in \{0, 1\}^M, \gamma \geq 0} \left[ \frac{1}{N} \sum_{i=1}^N \sup_{(a,c) \in \mathbb{Z}} [\frac{1}{|a|}\sum_{k \in A(a)} \sum_{\text{depots }j} T(j, k | c) x_{jk} - \gamma d((a, c), (A_i, C_i))] + \gamma \varepsilon \right]  
+\end{aligned}
+$$
+
+Now, observe that $T(j, k | c)$ is the solution to the shortest path minimization problem where "length" is the travel time for each edge. Thus we can write
+
+$$
+\begin{aligned}
+T(j, k | c) &= \min_{\text{paths}} \sum_{e} t_e = \max_{\pi} \pi(k) - \pi(j) \quad \text{ s.t. } \pi(v) - \pi(u) \leq t(u, v), \quad \forall u, v \in V
+\end{aligned}
+$$
+
+Thus we obtain
+
+$$
+\begin{aligned}
+\min_{y \in \{0, 1\}^M, \gamma \geq 0} \left[ \frac{1}{N} \sum_{i=1}^N \max_{(a,c) \in \mathbb{Z}, \pi} [\frac{1}{|a|}\sum_{k \in A(a)} \sum_{\text{depots }j} (\pi(k) - \pi(j)) x_{jk} - \gamma d((a, c), (A_i, C_i))] + \gamma \varepsilon \right]  
+\end{aligned}
+$$
 
 @incollection{kuhn2019wasserstein,
   title={Wasserstein distributionally robust optimization: Theory and applications in machine learning},
