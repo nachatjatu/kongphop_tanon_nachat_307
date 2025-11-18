@@ -25,8 +25,23 @@ $$
 f(\mathbb{Q}, y) = \mathbb{E}_{(a, c) \sim \mathbb{Q}}[t(y, a, c)]
 $$
 
-where $t(y,a,c)$ is the deterministic _average response time_ across accidents $a$ under congestion $c$ and deployment $y$. 
+where $t(y,a,c)$ is the deterministic _____ response time across accidents $a$ under congestion $c$ and deployment $y$. 
 
+If we take $t$ to be the _average response time_ so that 
+
+$$
+t(y, a, c) = \frac{1}{\sum_i a_i} \sum_{j: a_j = 1} \tau(y, j|c)
+$$
+
+where $\tau$ is the minimum travel time from any depot in $y$ to site $j$ under congestion $c$.
+
+We can write $\tau$ as a minimization problem $\tau(y, j|c) = \min_{i: y_i = 1} T(i, j|c)$ where $T$ is the minimum travel time from depot $i$ to site $j$ under congestion $c$. This can be written as an (MI)LP to support the solution of this problem.
+
+**Thus our optimization problem is**
+
+$$
+\min_{y \in \{0, 1\}^M} \sup_{\mathbb{Q} \in \mathbb{B}_{\varepsilon, p}(\hat{\mathbb{P}}_N)} \mathbb{E}_{(a,c) \sim \mathbb{Q}} \left[\frac{1}{\sum_i a_i} \sum_{j: a_j = 1} \min_{i: y_i = 1} T(i, j|c) \right]
+$$
 
 
 
