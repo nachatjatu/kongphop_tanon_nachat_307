@@ -44,8 +44,7 @@ class BKKGraph:
             attrs["parent_id"] = f"{u}->{v}"
             attrs["is_subedge"] = False  # original T→T
 
-            if p1 != p2:
-                self.G.add_edge(u, v, **attrs)
+            self.G.add_edge(u, v, **attrs)
 
     # ----------------------------------------------------------------------
     # 2. Helper: snap projection to endpoints
