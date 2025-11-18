@@ -1,0 +1,12 @@
+name: 311_final
+channels:
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - python=3.10
+  - gurobi
+  - ipykernel
+  - osmnx
+  - openpyxl
+  - geopandas
+prefix: /opt/anaconda3/envs/311_final
