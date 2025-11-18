@@ -134,10 +134,6 @@ class BKKGraph:
                 new_node = str(uuid.uuid4())
                 self.G.add_node(new_node, x=proj_pt.x, y=proj_pt.y, vtype=vtype)
 
-            # If the projection is exactly a node, no split needed
-            if new_node == u or new_node == v:
-                continue
-
             # Split forward edge u→v
             self.split_edge(u, v, edge, proj_pt, new_node)
 
