@@ -1,0 +1,147 @@
+import networkx as nx
+import osmnx as ox
+from shapely.geometry import LineString, Point
+from shapely.ops import substring
+import uuid
+
+
+class BKKGraph:
+    def __init__(self, tmc_nodes, congestion_edges):
+        """
+        tmc_nodes: DataFrame with columns ["loc_code", "lat", "lon"]
+        congestion_edges: DataFrame with columns ["start_loc", "end_loc", ... congestion attrs ...]
+        """
+        self.G = nx.DiGraph()
+        nodes = tmc_nodes.set_index("loc_code")
+        self.load_base_graph(nodes, congestion_edges)
+
+    # ----------------------------------------------------------------------
+    # 1. Build original TMC graph
+    # ----------------------------------------------------------------------
+    def load_base_graph(self, nodes, edges):
+        """Load base graph of TMC nodes (type='T') and congestion edges."""
+        for loc_code, row in nodes.iterrows():
+            self.G.add_node(
+                loc_code,
+                x=row["lon"],
+                y=row["lat"],
+                vtype="T"
+            )
+
+        for _, row in edges.iterrows():
+            u = row["start_loc"]
+            v = row["end_loc"]
+
+            p1 = (nodes.loc[u, "lon"], nodes.loc[u, "lat"])
+            p2 = (nodes.loc[v, "lon"], nodes.loc[v, "lat"])
+            geom = LineString([p1, p2])
+
+            # Copy all congestion columns
+            attrs = {k: row[k] for k in row.index if k not in ["start_loc", "end_loc"]}
+
+            # Add metadata
+            attrs["geometry"] = geom
+            attrs["length"] = geom.length
+            attrs["parent_id"] = f"{u}->{v}"
+            attrs["is_subedge"] = False  # original T→T
+
+            self.G.add_edge(u, v, **attrs)
+
+    # ----------------------------------------------------------------------
+    # 2. Helper: snap projection to endpoints
+    # ----------------------------------------------------------------------
+    def maybe_snap_to_endpoints(self, line, proj_pt, tol):
+        p0 = Point(line.coords[0])
+        p1 = Point(line.coords[-1])
+
+        if proj_pt.distance(p0) <= tol:
+            return p0, "start"
+        if proj_pt.distance(p1) <= tol:
+            return p1, "end"
+        return proj_pt, None
+
+    # ----------------------------------------------------------------------
+    # 3. Split an edge at a point
+    # ----------------------------------------------------------------------
+    def split_edge(self, u, v, edge, p, new_node):
+        line = edge["geometry"]
+
+        # Remove original edge
+        self.G.remove_edge(u, v)
+
+        # Distance along edge
+        dist = line.project(p)
+
+        # Substring returns LineString OR Point
+        part1 = substring(line, 0, dist)
+        part2 = substring(line, dist, line.length)
+
+        # Ensure LineStrings (zero-length is allowed)
+        if part1.geom_type == "Point":
+            part1 = LineString([part1, part1])
+        if part2.geom_type == "Point":
+            part2 = LineString([part2, part2])
+
+        # Copy attributes (including congestion)
+        attrs = {k: val for k, val in edge.items() if k != "geometry"}
+
+        # Mark as subedge and keep same parent_id
+        attrs["is_subedge"] = True
+
+        # Add subedges with updated geometry + length
+        self.G.add_edge(
+            u, new_node,
+            **attrs,
+            geometry=part1,
+            length=part1.length
+        )
+
+        self.G.add_edge(
+            new_node, v,
+            **attrs,
+            geometry=part2,
+            length=part2.length
+        )
+
+    # ----------------------------------------------------------------------
+    # 4. Add depot/accident points and split edges
+    # ----------------------------------------------------------------------
+    def add_points(self, point_df, tol_snap=1e-6):
+        """
+        point_df must contain: lat, lon, type   where type ∈ {"D", "A"}.
+        """
+        for _, row in point_df.iterrows():
+            lat, lon = row["lat"], row["lon"]
+            vtype = row["type"]  # "D" or "A"
+
+            # Find nearest edge
+            u, v, k = ox.distance.nearest_edges(self.G, lon, lat)
+            edge = self.G[u][v]
+            line = edge["geometry"]
+
+            pt = Point(lon, lat)
+            proj_pt = line.interpolate(line.project(pt))
+
+            # Snap to endpoints if close
+            proj_pt, snap_side = self.maybe_snap_to_endpoints(line, proj_pt, tol_snap)
+
+            # If snapped, reuse TMC node
+            if snap_side == "start":
+                new_node = u
+            elif snap_side == "end":
+                new_node = v
+            else:
+                new_node = str(uuid.uuid4())
+                self.G.add_node(new_node, x=proj_pt.x, y=proj_pt.y, vtype=vtype)
+
+            # If the projection is exactly a node, no split needed
+            if new_node == u or new_node == v:
+                continue
+
+            # Split forward edge u→v
+            self.split_edge(u, v, edge, proj_pt, new_node)
+
+            # Split reverse edge if exists
+            if self.G.has_edge(v, u):
+                edge_rev = self.G[v][u]
+                self.split_edge(v, u, edge_rev, proj_pt, new_node)
