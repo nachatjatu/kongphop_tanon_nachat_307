@@ -1,0 +1,4 @@
+processed_data/2021_incidents.csv filter=lfs diff=lfs merge=lfs -text
+processed_data/2022_incidents.csv filter=lfs diff=lfs merge=lfs -text
+processed_data/2023_incidents.csv filter=lfs diff=lfs merge=lfs -text
+processed_data/bkk_loc_table.csv filter=lfs diff=lfs merge=lfs -text
