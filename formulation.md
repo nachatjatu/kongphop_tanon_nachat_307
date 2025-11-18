@@ -4,7 +4,7 @@ It is important to note why we require the $\varepsilon$ ball constraint: if our
 
 Thus, we proceed to formulating the problem. Suppose there are $N_a$ accident locations, $N_d$ depot locations, $N_t$ TMC locations, which define a directed graph $G = (V, E)$ where $|V| = N_a + N_d + N_t$. 
 
-Each data point is a tuple $(A_t, C_t)$ where $A_t \in \{0, 1\}^{N_a}$ encodes whether an accident occurred at each accident location and $C_t \in \{1, 2, 3\}^{|E|} assigns a _congestion level_ from 1-3 to each edge.
+Each data point is a tuple $(A_t, C_t)$ where $A_t \in \{0, 1\}^{N_a}$ encodes whether an accident occurred at each accident location and $C_t \in \{1, 2, 3\}^{|E|}$ assigns a _congestion level_ from 1-3 to each edge.
 Define $\mathcal{A}, \mathcal{C}$ as the spaces of accident and congestion scenarios, respectively. Then, our $N$ data points define an empirical distribution over $\mathcal{A} \times \mathcal{C}$, given by
 
 $$
