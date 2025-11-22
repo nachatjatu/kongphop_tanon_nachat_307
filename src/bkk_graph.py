@@ -25,7 +25,7 @@ class BKKGraph:
     def load_base_graph(self, nodes, edges):
         """Load base graph of TMC nodes (type='T') and congestion edges."""
         for loc_code, row in nodes.iterrows():
-            self.G.add_node(loc_code, x=row["lon"], y=row["lat"], vtype="T")
+            self.G.add_node(loc_code, lon=row["lon"], lat=row["lat"], vtype="T")
 
         for _, row in edges.iterrows():
             u = row["start_loc"]
@@ -121,7 +121,7 @@ class BKKGraph:
                 new_node = v
             else:
                 new_node = str(uuid.uuid4())
-                self.G.add_node(new_node, x=proj_pt.x, y=proj_pt.y, vtype=vtype)
+                self.G.add_node(new_node, lon=proj_pt.x, lat=proj_pt.y, vtype=vtype)
 
             # Split forward edge u→v
             self.split_edge(u, v, edge, proj_pt, new_node)
@@ -133,6 +133,7 @@ class BKKGraph:
 
 
 if __name__ == "__main__":
-    node_df = pd.read_csv("processed_data/bkk_loc_table.csv")
-    edge_df = pd.read_csv("processed_data/bkk_edge_table.csv")
-    BKKGraph(node_df, edge_df)
+    node_df = pd.read_csv("../processed_data/bkk_loc_table.csv")
+    edge_df = pd.read_csv("../processed_data/bkk_edge_table.csv")
+    G = BKKGraph(node_df, edge_df)
+    
