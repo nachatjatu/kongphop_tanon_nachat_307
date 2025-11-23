@@ -180,7 +180,7 @@ def add_points_to_edge(G, edges_gdf, edge_id, split_list, vtype):
     u, v, k = edge_id
 
     # 1. Original edge geometry
-    attrs = G.edges[u, v, k].copy()
+    attrs = edges_gdf.loc[u, v, k].copy()
     geom_3857 = edges_gdf.loc[(u, v, k)]["geometry"]
     total_len = geom_3857.length
 
@@ -224,14 +224,23 @@ def add_points_to_edge(G, edges_gdf, edge_id, split_list, vtype):
     new_nodes = []
 
     for (dist, (_, loc_code, proj_pt, pt_id)) in zip(clean_s, raw_splits):
-        new_name = f"{vtype}_{loc_code}_{pt_id}" if pt_id != "" else f"{vtype}_{loc_code}"
+
+        name_comps = []
+
+        name_comps.append(str(loc_code))
+        if pt_id != "":
+            name_comps.append(str(pt_id))
+
+
+        new_name = "_".join(name_comps)
 
         G.add_node(
             new_name,
             x=proj_pt.x,
             y=proj_pt.y,
             geometry=proj_pt,
-            vtype=vtype
+            vtype=vtype,
+            street_count=1,
         )
 
         nodes.append(new_name)
@@ -286,7 +295,7 @@ def add_points_to_edge(G, edges_gdf, edge_id, split_list, vtype):
         G.add_edge(nodes[i], nodes[i+1], **attrs2)
 
 
-def build_augmented_graph_batch(G, edges_gdf, matchings):
+def build_augmented_graph_batch(G, edges_gdf, matchings, vtype):
     """
     Use candidate matchings to add virtual nodes onto edges in G.
     """
@@ -312,7 +321,7 @@ def build_augmented_graph_batch(G, edges_gdf, matchings):
 
     for edge_id, split_list in edge_groups.items():
         assert edge_id in edges_gdf_indexed.index, f"Missing edge geometry for {edge_id}"
-        add_points_to_edge(G_aug, edges_gdf_indexed, edge_id, split_list, vtype="virt")
+        add_points_to_edge(G_aug, edges_gdf_indexed, edge_id, split_list, vtype=vtype)
 
     return G_aug
 
@@ -377,7 +386,7 @@ def shortest_paths_multi_target(G, source, next_loc_code, next_pt_ids):
     Unreachable targets get np.inf.
     """
 
-    targets = [f"virt_{next_loc_code}_{pid}" for pid in next_pt_ids]
+    targets = [f"{next_loc_code}_{pid}" for pid in next_pt_ids]
     found = dijkstra_multi_target(G, source, targets, weight="length")
 
     # Assign infinity for unreachable targets
@@ -442,7 +451,7 @@ def backward(G, chain, matchings, alpha=1.0, beta=1.0, verbose=False):
 
         for j in range(K):
             pt_id_j = pt_ids_i[j]
-            source_node = f"virt_{loc_code}_{pt_id_j}"
+            source_node = f"{loc_code}_{pt_id_j}"
 
             if verbose:
                 print(f"\n    Candidate j = {j}, point_id = {pt_id_j}")
