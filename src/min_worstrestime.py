@@ -16,19 +16,16 @@ from tqdm import tqdm
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
-def add_travel_time(G, row):
-    G_new = deepcopy(G)
+def compute_shortest_time(G, row):
+    warnings.simplefilter(action="ignore", category=FutureWarning)
+    G_traffic = deepcopy(G)
 
     # impute travel time for each scenario
-    for j, edge in enumerate(G_new.edges):
-        G_new[edge[0]][edge[1]][edge[2]]["speed_kph"] *= 1 - row[j]
+    for j, edge in enumerate(G_traffic.edges):
+        G_traffic[edge[0]][edge[1]][edge[2]]["speed_kph"] *= 1 - row[j]
 
-    G_new = ox.routing.add_edge_travel_times(G_new)
+    G_traffic = ox.routing.add_edge_travel_times(G_traffic)
 
-    return G_new
-
-
-def compute_shortest_time(G_traffic):
     nodes, edges = ox.graph_to_gdfs(G_traffic)
     hospital_nodes = nodes[nodes["vtype"] == "hosp"]
     accident_nodes = nodes[nodes["vtype"] == "accident"]
@@ -81,9 +78,6 @@ if __name__ == "__main__":
     #         G_traffics[-1][edge[0]][edge[1]][edge[2]]["speed_kph"] *= 1 - row[j]
 
     #     G_traffics[-1] = ox.routing.add_edge_travel_times(G_traffics[-1])
-    G_traffics = Parallel(n_jobs=-1, verbose=10)(
-        delayed(add_travel_time)(G, row) for i, row in congestion_df.iterrows()
-    )
 
     # compute shortest time between depots and accidents
     # A_traffics = []
@@ -99,7 +93,7 @@ if __name__ == "__main__":
     #         for j, accident_id in enumerate(accident_nodes.index):
     #             A_traffics[-1][i, j] = length[accident_id]
     A_traffics = Parallel(n_jobs=-1, verbose=10)(
-        delayed(compute_shortest_time)(G_traffic) for G_traffic in G_traffics
+        delayed(compute_shortest_time)(G, row) for i, row in congestion_df.iterrows()
     )
 
     # probability of accident sites and realization
