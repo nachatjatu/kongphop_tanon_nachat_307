@@ -6,10 +6,8 @@ import gurobipy as gp
 import networkx as nx
 import numpy as np
 import osmnx as ox
-from gurobipy import GRB
 import pandas as pd
-
-np.random.seed(0)
+from gurobipy import GRB
 
 if __name__ == "__main__":
     with open("processed_data/bkk_augmented_graph.pickle", "rb") as f:
@@ -19,8 +17,12 @@ if __name__ == "__main__":
     G = ox.routing.add_edge_speeds(G)
 
     # load CSV
-    accident_df = pd.read_csv('processed_data/accident_tables/wd_morning_accidents.csv').drop('date', axis=1)
-    congestion_df = pd.read_csv('processed_data/congestion_tables/wd_morning_congestion.csv').drop('date', axis=1)
+    accident_df = pd.read_csv(
+        "processed_data/accident_tables/wd_morning_accidents.csv"
+    ).drop("date", axis=1)
+    congestion_df = pd.read_csv(
+        "processed_data/congestion_tables/wd_morning_congestion.csv"
+    ).drop("date", axis=1)
 
     to_drop = accident_df.isna().any(axis=1) | congestion_df.isna().any(axis=1)
 
@@ -36,9 +38,7 @@ if __name__ == "__main__":
 
     # impute travel time for each scenario
     for idx, edge in enumerate(G.edges):
-        G[edge[0]][edge[1]][edge[2]][
-            "speed_kph"
-        ] *= (1 - congestion_factors[idx])
+        G[edge[0]][edge[1]][edge[2]]["speed_kph"] *= 1 - congestion_factors[idx]
 
     G = ox.routing.add_edge_travel_times(G)
 
@@ -73,9 +73,7 @@ if __name__ == "__main__":
 
     # Add constraint
     model.addConstr(X.sum(axis=0) == 1, "only one site")
-    model.addConstr(
-        X.sum(axis=1) <= len(accident_nodes) * y, "only assign to open depot"
-    )
+    model.addConstr(X <= y[:, np.newaxis], "only assign to open depot")
     model.addConstr(y.sum() <= num_depots, "depot opening")
 
     # Optimize model
