@@ -1,4 +1,4 @@
 raw_data/
 cache/
-accident_tables/
-congestion_tables/
+processed_data/accident_tables/
+processed_data/congestion_tables/
