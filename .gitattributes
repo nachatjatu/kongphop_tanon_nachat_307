@@ -4,3 +4,4 @@ processed_data/2023_incidents.csv filter=lfs diff=lfs merge=lfs -text
 processed_data/bkk_loc_table.csv filter=lfs diff=lfs merge=lfs -text
 results/experimental_results.pickle filter=lfs diff=lfs merge=lfs -text
 results/processed_results.pickle filter=lfs diff=lfs merge=lfs -text
+results/ filter=lfs diff=lfs merge=lfs -text
