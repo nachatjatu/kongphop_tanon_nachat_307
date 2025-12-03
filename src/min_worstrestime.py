@@ -1,7 +1,6 @@
 import pickle
 import warnings
 from copy import deepcopy
-from joblib import Parallel, delayed
 
 # import cvxpy as cvx
 import geopandas as gpd
@@ -18,16 +17,16 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 def init_model(A_traffics, P, congestion_df, init_depots):
-    env = gp.Env(empty=True)
-    env.setParam('OutputFlag', 0)
-    env.start()
+    warnings.simplefilter(action="ignore", category=RuntimeWarning)
     # formulate coverage problem
     # problem variable
     n_hospitals = A_traffics[0].shape[0]
     n_accidents = A_traffics[0].shape[1]
 
     # Create a model using gurobi
-    model = gp.Model("Accident coverage problem", env=env)
+    model = gp.Model("Accident coverage problem")
+    
+    model.setParam("Threads", 14)
 
     # Create variables
     X = model.addMVar((n_hospitals, n_accidents), vtype=GRB.BINARY, name="X")
@@ -50,17 +49,16 @@ def init_model(A_traffics, P, congestion_df, init_depots):
     return model, depot_constr, X, y, t
 
 
-def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time):
-    init_depots = min_depots
+def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time, step):
+    # initialize model
     print(f"Initializing model for {day}, {time}")
-    model, depot_constr, X, y, t = init_model(A_traffics, P, congestion_df, init_depots)
+    model, depot_constr, X, y, t = init_model(A_traffics, P, congestion_df, min_depots)
     print(f"Model initialized")
     results = {}
 
-    for num_depots in tqdm(range(min_depots, max_depots+1)):
+    # re-run optimizations with different RHS values
+    for num_depots in tqdm(range(min_depots, max_depots+1, step)):
         depot_constr.RHS = num_depots
-
-        # Optimize model
         model.optimize()
 
         results[num_depots] = {
@@ -73,18 +71,21 @@ def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time):
             "response_time": float(t.X),
         }
     print(f"Completed optimization experiments for {day}, {time}")
+    # for memory
+    model.dispose()
+    del model, X, y, t, depot_constr
     return results
 
 
-def run_single(day, time, min_depots, max_depots):
-
+def run_single(day, time, min_depots, max_depots, step=1):
+    # load data
     print(f"Loading accident and congestion data for {day}, {time}")
     A_traffics = np.load(f"processed_data/accident_tables/A_traffics_{day}_{time}.npy")
     accident_df = pd.read_csv(f"processed_data/accident_tables/{day}_{time}_accidents.csv")
     congestion_df = pd.read_csv(f"processed_data/congestion_tables/{day}_{time}_congestion.csv")
 
+    # process data
     print(f"Processing data")
-
     accident_df["date"] = pd.to_datetime(accident_df["date"])
     congestion_df["date"] = pd.to_datetime(congestion_df["date"])
 
@@ -105,36 +106,40 @@ def run_single(day, time, min_depots, max_depots):
     accident_counts = accident_np.sum(axis=1)
     P = accident_np / accident_counts[:, np.newaxis]
 
-    return batch_opt(A_traffics, P, congestion_df_filtered, min_depots, max_depots, day, time)
+    # solve batch
+    return batch_opt(A_traffics, P, congestion_df_filtered, min_depots, max_depots, day, time, step)
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--min_depots", type=int)
     parser.add_argument("--max_depots", type=int)
+    parser.add_argument("--step", type=int)
     return parser.parse_args()
 
 
-
 if __name__ == "__main__":
-
+    # parse arguments
     args = parse_args()
+    min_depots, max_depots, step = args.min_depots, args.max_depots, args.step
 
-    min_depots, max_depots = args.min_depots, args.max_depots
-
+    # load supplementary data
     with open("processed_data/bkk_augmented_graph.pickle", "rb") as f:
         G = pickle.load(f)
+    with open('depots/gas_stations.pickle', 'rb') as f:
+        gas_stations = pickle.load(f)
 
-    print("Creating parallel jobs")
+    # perform optimization experiments
+    results = {}
+    for day in ["wd", "we"]:
+        results[day] = {}
+        for time in ["early", "morning", "midday", "evening", "night"]:
+            res = run_single(day, time, min_depots, max_depots, step)
+            results[day][time] = res
 
-    results = Parallel(n_jobs=-1, backend="loky")(
-        delayed(run_single)(day, time, min_depots, max_depots) 
-        for day in ["wd", "we"] 
-        for time in ["early", "morning", "midday", "evening", "night"]
-    )
-
+    # save files
     print("Jobs completed - now saving")
-    with open("results/experimental_results.pickle", "wb") as f:
+    with open("results/min_worstrestime_raw.pickle", "wb") as f:
         pickle.dump(results, f)
     print("Success!")
 
