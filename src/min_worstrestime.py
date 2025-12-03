@@ -1,6 +1,7 @@
 import pickle
 import warnings
 from copy import deepcopy
+from joblib import Parallel, delayed
 
 # import cvxpy as cvx
 import geopandas as gpd
@@ -10,103 +11,23 @@ import numpy as np
 import osmnx as ox
 import pandas as pd
 from gurobipy import GRB
-from joblib import Parallel, delayed
+import argparse
 from tqdm import tqdm
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
-def compute_shortest_time(G, row):
-    warnings.simplefilter(action="ignore", category=FutureWarning)
-    G_traffic = deepcopy(G)
-
-    # impute travel time for each scenario
-    for j, edge in enumerate(G_traffic.edges):
-        G_traffic[edge[0]][edge[1]][edge[2]]["speed_kph"] *= 1 - row[j]
-
-    G_traffic = ox.routing.add_edge_travel_times(G_traffic)
-
-    nodes, edges = ox.graph_to_gdfs(G_traffic)
-    hospital_nodes = nodes[nodes["vtype"] == "hosp"]
-    accident_nodes = nodes[nodes["vtype"] == "accident"]
-    A_traffic = np.zeros((len(hospital_nodes), len(accident_nodes)))
-    for i, hosp_id in enumerate(hospital_nodes.index):
-        length = nx.single_source_dijkstra_path_length(
-            G_traffic, hosp_id, weight="travel_time"
-        )
-        for j, accident_id in enumerate(accident_nodes.index):
-            A_traffic[i, j] = length[accident_id]
-    return A_traffic
-
-
-if __name__ == "__main__":
-    with open("processed_data/bkk_augmented_graph.pickle", "rb") as f:
-        G = pickle.load(f)
-
-    # load CSV
-    accident_df = pd.read_csv(
-        "processed_data/accident_tables/wd_morning_accidents.csv"
-    ).drop("date", axis=1)
-    congestion_df = pd.read_csv(
-        "processed_data/congestion_tables/wd_morning_congestion.csv"
-    ).drop("date", axis=1)
-
-    to_drop = (
-        accident_df.isna().any(axis=1)
-        | congestion_df.isna().any(axis=1)
-        | (accident_df == 0).all(axis=1)
-    )
-
-    accident_df = accident_df[~to_drop].head(30)
-    congestion_df = congestion_df[~to_drop].head(30)
-
-    # process accidents
-    accident_np = accident_df.to_numpy()
-    accident_counts = accident_np.sum(axis=1)
-    accident_freqs = accident_np / accident_counts[:, np.newaxis]
-
-    # compute travel time
-    G = ox.routing.add_edge_speeds(G)
-
-    # impute travel time for each scenario
-    # G_traffics = []
-    # for i, row in tqdm(congestion_df.iterrows()):
-    #     G_traffics.append(deepcopy(G))
-
-    #     # impute travel time for each scenario
-    #     for j, edge in enumerate(G_traffics[-1].edges):
-    #         G_traffics[-1][edge[0]][edge[1]][edge[2]]["speed_kph"] *= 1 - row[j]
-
-    #     G_traffics[-1] = ox.routing.add_edge_travel_times(G_traffics[-1])
-
-    # compute shortest time between depots and accidents
-    # A_traffics = []
-    # for G_traffic in tqdm(G_traffics):
-    #     nodes, edges = ox.graph_to_gdfs(G_traffic)
-    #     hospital_nodes = nodes[nodes["vtype"] == "hosp"]
-    #     accident_nodes = nodes[nodes["vtype"] == "accident"]
-    #     A_traffics.append(np.zeros((len(hospital_nodes), len(accident_nodes))))
-    #     for i, hosp_id in enumerate(hospital_nodes.index):
-    #         length = nx.single_source_dijkstra_path_length(
-    #             G_traffic, hosp_id, weight="travel_time"
-    #         )
-    #         for j, accident_id in enumerate(accident_nodes.index):
-    #             A_traffics[-1][i, j] = length[accident_id]
-    A_traffics = Parallel(n_jobs=-1, verbose=10)(
-        delayed(compute_shortest_time)(G, row) for i, row in congestion_df.iterrows()
-    )
-
-    # probability of accident sites and realization
-    P = accident_freqs
-
+def init_model(A_traffics, P, congestion_df, init_depots):
+    env = gp.Env(empty=True)
+    env.setParam('OutputFlag', 0)
+    env.start()
     # formulate coverage problem
     # problem variable
     n_hospitals = A_traffics[0].shape[0]
     n_accidents = A_traffics[0].shape[1]
-    num_depots = 10
 
     # Create a model using gurobi
-    model = gp.Model("Accident coverage problem")
+    model = gp.Model("Accident coverage problem", env=env)
 
     # Create variables
     X = model.addMVar((n_hospitals, n_accidents), vtype=GRB.BINARY, name="X")
@@ -123,34 +44,100 @@ if __name__ == "__main__":
         )
     model.addConstr(X.sum(axis=0) == 1, "only one site")
     model.addConstr(X <= y[:, np.newaxis], "only assign to open depot")
-    model.addConstr(y.sum() <= num_depots, "depot opening")
 
-    # Optimize model
-    model.optimize()
+    depot_constr = model.addConstr(y.sum() <= init_depots, "depot opening")
 
-    print(f"Minimum worst case response time: {model.ObjVal:.2f}")
-    print(y.X)
+    return model, depot_constr, X, y, t
 
-    # # Create variables
-    # X = cvx.Variable((len(hospital_nodes), len(accident_nodes)), boolean=True)
-    # y = cvx.Variable(len(hospital_nodes), boolean=True)
-    # t = cvx.Variable()
 
-    # # Set objective
-    # obj = cvx.Minimize(t)
+def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time):
+    init_depots = min_depots
+    print(f"Initializing model for {day}, {time}")
+    model, depot_constr, X, y, t = init_model(A_traffics, P, congestion_df, init_depots)
+    print(f"Model initialized")
+    results = {}
 
-    # # Add constraint
-    # constraints = [
-    #     cvx.sum(X, axis=0) == 1,
-    #     X <= y[:, np.newaxis],
-    #     cvx.sum(y) <= num_depots,
-    # ]
-    # for i in range(n_realizations):
-    #     constraints.append(cvx.sum(cvx.multiply(A_traffics[i], X) @ P[i, :]) <= t)
+    for num_depots in tqdm(range(min_depots, max_depots+1)):
+        depot_constr.RHS = num_depots
 
-    # # Optimize model
-    # prob = cvx.Problem(obj, constraints)
-    # prob.solve(solver=cvx.SCIP, verbose=True)
+        # Optimize model
+        model.optimize()
 
-    # print(f"Minimum average response time: {prob.value:.2f}")
-    # print(y.value)
+        results[num_depots] = {
+            "day": day,
+            "time": time,
+            "status": int(model.status),
+            "objective": model.ObjVal if model.Status == GRB.OPTIMAL else None,
+            "y": y.X.tolist(),
+            "X": X.X.tolist(),
+            "response_time": float(t.X),
+        }
+    print(f"Completed optimization experiments for {day}, {time}")
+    return results
+
+
+def run_single(day, time, min_depots, max_depots):
+
+    print(f"Loading accident and congestion data for {day}, {time}")
+    A_traffics = np.load(f"processed_data/accident_tables/A_traffics_{day}_{time}.npy")
+    accident_df = pd.read_csv(f"processed_data/accident_tables/{day}_{time}_accidents.csv")
+    congestion_df = pd.read_csv(f"processed_data/congestion_tables/{day}_{time}_congestion.csv")
+
+    print(f"Processing data")
+
+    accident_df["date"] = pd.to_datetime(accident_df["date"])
+    congestion_df["date"] = pd.to_datetime(congestion_df["date"])
+
+    accident_df_filtered = accident_df[accident_df["date"].dt.year < 2023].drop("date", axis=1)
+    congestion_df_filtered = congestion_df[congestion_df["date"].dt.year < 2023].drop("date", axis=1)
+
+    to_drop = (
+        accident_df_filtered.isna().any(axis=1)
+        | congestion_df_filtered.isna().any(axis=1)
+        | (accident_df_filtered == 0).all(axis=1)
+    )
+
+    accident_df_filtered = accident_df_filtered[~to_drop]
+    congestion_df_filtered = congestion_df_filtered[~to_drop]
+
+    # process accidents
+    accident_np = accident_df_filtered.to_numpy()
+    accident_counts = accident_np.sum(axis=1)
+    P = accident_np / accident_counts[:, np.newaxis]
+
+    return batch_opt(A_traffics, P, congestion_df_filtered, min_depots, max_depots, day, time)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--min_depots", type=int)
+    parser.add_argument("--max_depots", type=int)
+    return parser.parse_args()
+
+
+
+if __name__ == "__main__":
+
+    args = parse_args()
+
+    min_depots, max_depots = args.min_depots, args.max_depots
+
+    with open("processed_data/bkk_augmented_graph.pickle", "rb") as f:
+        G = pickle.load(f)
+
+    print("Creating parallel jobs")
+
+    results = Parallel(n_jobs=-1, backend="loky")(
+        delayed(run_single)(day, time, min_depots, max_depots) 
+        for day in ["wd", "we"] 
+        for time in ["early", "morning", "midday", "evening", "night"]
+    )
+
+    print("Jobs completed - now saving")
+    with open("results/experimental_results.pickle", "wb") as f:
+        pickle.dump(results, f)
+    print("Success!")
+
+
+
+    
