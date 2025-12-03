@@ -136,6 +136,7 @@ if __name__ == "__main__":
         for time in ["early", "morning", "midday", "evening", "night"]:
             res = run_single(day, time, min_depots, max_depots, step)
             results[day][time] = res
+            break
 
     # save files
     print("Jobs completed - now saving")
