@@ -31,28 +31,28 @@ def init_model(A_traffics, P, congestion_df, init_depots):
     # Create variables
     X = model.addMVar((n_hospitals, n_accidents), vtype=GRB.BINARY, name="X")
     y = model.addMVar(n_hospitals, vtype=GRB.BINARY, name="y")
+    t = model.addVar()
 
+    # Set objective
+    model.setObjective(t, GRB.MINIMIZE)
 
     # Add constraint
-    scenario_times = []
     for i in range(len(congestion_df)):
-        T_i = ((A_traffics[i] * X) @ P[i, :]).sum()
-        scenario_times.append(T_i)
-
-    model.setObjective(gp.quicksum(scenario_times) / len(scenario_times), GRB.MINIMIZE)
-
+        model.addConstr(
+            ((A_traffics[i] * X) @ P[i, :]).sum() <= t, f"realization {i + 1}"
+        )
     model.addConstr(X.sum(axis=0) == 1, "only one site")
     model.addConstr(X <= y[:, np.newaxis], "only assign to open depot")
 
     depot_constr = model.addConstr(y.sum() <= init_depots, "depot opening")
 
-    return model, depot_constr, X, y
+    return model, depot_constr, X, y, t
 
 
 def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time, step):
     # initialize model
     print(f"Initializing model for {day}, {time}")
-    model, depot_constr, X, y = init_model(A_traffics, P, congestion_df, min_depots)
+    model, depot_constr, X, y, t = init_model(A_traffics, P, congestion_df, min_depots)
     print(f"Model initialized")
     results = {}
 
@@ -68,11 +68,12 @@ def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time, s
             "objective": model.ObjVal if model.Status == GRB.OPTIMAL else None,
             "y": y.X.tolist(),
             "X": X.X.tolist(),
+            "response_time": float(t.X),
         }
     print(f"Completed optimization experiments for {day}, {time}")
     # for memory
     model.dispose()
-    del model, X, y, depot_constr
+    del model, X, y, t, depot_constr
     return results
 
 
@@ -136,10 +137,9 @@ if __name__ == "__main__":
             res = run_single(day, time, min_depots, max_depots, step)
             results[day][time] = res
 
-            
     # save files
     print("Jobs completed - now saving")
-    with open("results/min_avgrestime2_raw.pickle", "wb") as f:
+    with open("results/model_3_raw.pickle", "wb") as f:
         pickle.dump(results, f)
     print("Success!")
 

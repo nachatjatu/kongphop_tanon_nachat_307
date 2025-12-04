@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     # save files
     print("Jobs completed - now saving")
-    with open("results/avgrestime_raw2.pickle", "wb") as f:
+    with open("results/model_1_raw.pickle", "wb") as f:
         pickle.dump(results, f)
     print("Success!")
 
