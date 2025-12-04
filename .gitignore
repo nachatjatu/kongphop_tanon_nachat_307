@@ -1,3 +1,3 @@
 raw_data/
-processed_data/accident_tables/
+processed_data/accident_tables/*.csv
 processed_data/congestion_tables/
