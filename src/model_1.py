@@ -13,16 +13,13 @@ import argparse
 
 
 def init_model(A, P, init_depots):
-    env = gp.Env(empty=True)
-    env.setParam('OutputFlag', 0)
-    env.start()
     # formulate coverage problem
     # problem variable
     n_hospitals = A.shape[0]
     n_accidents = A.shape[1]
 
     # Create a model using gurobi
-    model = gp.Model("Accident coverage problem", env=env)
+    model = gp.Model("Accident coverage problem")
 
     # Create variables
     X = model.addMVar((n_hospitals, n_accidents), vtype=GRB.BINARY, name="X")

@@ -6,3 +6,11 @@ results/** filter=lfs diff=lfs merge=lfs -text
 cache/** filter=lfs diff=lfs merge=lfs -text
 processed_data/accident_tables/* filter=lfs diff=lfs merge=lfs -text
 processed_data/congestion_tables/* filter=lfs diff=lfs merge=lfs -text
+results/model_1_raw.pickle filter=lfs diff=lfs merge=lfs -text
+results/model_2_raw.pickle filter=lfs diff=lfs merge=lfs -text
+results/model_3_raw_2stage_20251204.pickle filter=lfs diff=lfs merge=lfs -text
+results/worstrestime_results.pickle[[:space:]]09-29-35-152.pickle filter=lfs diff=lfs merge=lfs -text
+results/min_avgrestime_raw.pickle filter=lfs diff=lfs merge=lfs -text
+results/min_avgrestime_results.pickle filter=lfs diff=lfs merge=lfs -text
+results/min_avgrestime2_raw.pickle filter=lfs diff=lfs merge=lfs -text
+results/min_worstrestime_raw2.pickle filter=lfs diff=lfs merge=lfs -text
