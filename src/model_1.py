@@ -72,18 +72,25 @@ def run_single(day, time, min_depots, max_depots, G, gas_stations, step=1):
     print(f"Processing data")
     accident_df["date"] = pd.to_datetime(accident_df["date"])
     congestion_df["date"] = pd.to_datetime(congestion_df["date"])
+    
+    # Step 1: base mask
+    mask_year = (accident_df["date"].dt.year < 2023) & \
+                (congestion_df["date"].dt.year < 2023)
 
-    accident_df_filtered = accident_df[accident_df["date"].dt.year < 2023].drop("date", axis=1)
-    congestion_df_filtered = congestion_df[congestion_df["date"].dt.year < 2023].drop("date", axis=1)
+    # Step 2: temporary dfs
+    acc_tmp = accident_df[mask_year].drop("date", axis=1)
+    cong_tmp = congestion_df[mask_year].drop("date", axis=1)
 
-    to_drop = (
-        accident_df_filtered.isna().any(axis=1)
-        | congestion_df_filtered.isna().any(axis=1)
-        | (accident_df_filtered == 0).all(axis=1)
+    # Step 3: validity mask
+    mask_valid = ~(
+        acc_tmp.isna().any(axis=1)
+        | cong_tmp.isna().any(axis=1)
+        | (acc_tmp == 0).all(axis=1)
     )
 
-    accident_df_filtered = accident_df_filtered[~to_drop]
-    congestion_df_filtered = congestion_df_filtered[~to_drop]
+    # Now filter final dfs + A_traffics
+    accident_df_filtered = acc_tmp.loc[mask_valid]
+    congestion_df_filtered = cong_tmp.loc[mask_valid]
 
     # process accidents
     accident_counts = (accident_df_filtered.to_numpy()).sum(axis=0)

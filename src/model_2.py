@@ -88,17 +88,28 @@ def run_single(day, time, min_depots, max_depots, step=1):
     accident_df["date"] = pd.to_datetime(accident_df["date"])
     congestion_df["date"] = pd.to_datetime(congestion_df["date"])
 
-    accident_df_filtered = accident_df[accident_df["date"].dt.year < 2023].drop("date", axis=1)
-    congestion_df_filtered = congestion_df[congestion_df["date"].dt.year < 2023].drop("date", axis=1)
+    # Step 1: base mask
+    mask_year = (accident_df["date"].dt.year < 2023) & \
+                (congestion_df["date"].dt.year < 2023)
 
-    to_drop = (
-        accident_df_filtered.isna().any(axis=1)
-        | congestion_df_filtered.isna().any(axis=1)
-        | (accident_df_filtered == 0).all(axis=1)
+    # Step 2: temporary dfs
+    acc_tmp = accident_df[mask_year].drop("date", axis=1)
+    cong_tmp = congestion_df[mask_year].drop("date", axis=1)
+
+    # Step 3: validity mask
+    mask_valid = ~(
+        acc_tmp.isna().any(axis=1)
+        | cong_tmp.isna().any(axis=1)
+        | (acc_tmp == 0).all(axis=1)
     )
 
-    accident_df_filtered = accident_df_filtered[~to_drop]
-    congestion_df_filtered = congestion_df_filtered[~to_drop]
+    # Step 4: get indices of scenarios to keep
+    scenario_indices = acc_tmp.index[mask_valid].tolist()
+
+    # Now filter final dfs + A_traffics
+    accident_df_filtered = acc_tmp.loc[mask_valid]
+    congestion_df_filtered = cong_tmp.loc[mask_valid]
+    A_traffics_filtered = [A_traffics[i] for i in scenario_indices]
 
     # process accidents
     accident_np = accident_df_filtered.to_numpy()
@@ -106,7 +117,7 @@ def run_single(day, time, min_depots, max_depots, step=1):
     P = accident_np / accident_counts[:, np.newaxis]
 
     # solve batch
-    return batch_opt(A_traffics, P, congestion_df_filtered, min_depots, max_depots, day, time, step)
+    return batch_opt(A_traffics_filtered, P, congestion_df_filtered, min_depots, max_depots, day, time, step)
 
 
 def parse_args():
