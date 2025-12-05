@@ -64,39 +64,19 @@ def batch_opt(A_traffics, P, min_depots, max_depots, day, time, step):
 
 def run_single(day, time, min_depots, max_depots, G, gas_stations, step=1):
     # load data
-    print(f"Loading accident and congestion data for {day}, {time}")
-    accident_df = pd.read_csv(f"processed_data/accident_tables/{day}_{time}_accidents.csv")
-    congestion_df = pd.read_csv(f"processed_data/congestion_tables/{day}_{time}_congestion.csv")
+    tag = f'{day}_{time}'
+    print(f"Loading accident and congestion data for {tag}")
+    accident_df = pd.read_csv(f"processed_data/train/{tag}_accidents_train.csv").drop('date', axis=1)
+    congestion_df = pd.read_csv(f"processed_data/train/{tag}_congestion_train.csv").drop('date', axis=1)
 
     # process data
     print(f"Processing data")
-    accident_df["date"] = pd.to_datetime(accident_df["date"])
-    congestion_df["date"] = pd.to_datetime(congestion_df["date"])
-    
-    # Step 1: base mask
-    mask_year = (accident_df["date"].dt.year < 2023) & \
-                (congestion_df["date"].dt.year < 2023)
-
-    # Step 2: temporary dfs
-    acc_tmp = accident_df[mask_year].drop("date", axis=1)
-    cong_tmp = congestion_df[mask_year].drop("date", axis=1)
-
-    # Step 3: validity mask
-    mask_valid = ~(
-        acc_tmp.isna().any(axis=1)
-        | cong_tmp.isna().any(axis=1)
-        | (acc_tmp == 0).all(axis=1)
-    )
-
-    # Now filter final dfs + A_traffics
-    accident_df_filtered = acc_tmp.loc[mask_valid]
-    congestion_df_filtered = cong_tmp.loc[mask_valid]
 
     # process accidents
-    accident_counts = (accident_df_filtered.to_numpy()).sum(axis=0)
+    accident_counts = (accident_df.to_numpy()).sum(axis=0)
     accident_freqs = accident_counts / accident_counts.sum()
     # process congestion
-    congestion_factors = congestion_df_filtered.mean(axis=0)
+    congestion_factors = congestion_df.mean(axis=0)
 
     G = ox.add_edge_speeds(G)
 

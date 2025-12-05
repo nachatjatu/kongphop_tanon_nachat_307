@@ -145,50 +145,22 @@ def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time, s
 def run_single(day, time, min_depots, max_depots, step=1):
     # load data
     print(f"Loading accident and congestion data for {day}, {time}")
-    A_traffics = np.load(f"processed_data/accident_tables/A_traffics_{day}_{time}.npy")
-    accident_df = pd.read_csv(
-        f"processed_data/accident_tables/{day}_{time}_accidents.csv"
-    )
-    congestion_df = pd.read_csv(
-        f"processed_data/congestion_tables/{day}_{time}_congestion.csv"
-    )
+    tag = f'{day}_{time}'
+    accident_df = pd.read_csv(f"processed_data/train/{tag}_accidents_train.csv").drop('date', axis=1)
+    congestion_df = pd.read_csv(f"processed_data/train/{tag}_congestion_train.csv").drop('date', axis=1)
+    A_traffics = np.load(f'processed_data/train/A_traffics_{tag}_train.npy')
 
     # process data
     print(f"Processing data")
-    accident_df["date"] = pd.to_datetime(accident_df["date"])
-    congestion_df["date"] = pd.to_datetime(congestion_df["date"])
-
-    # Step 1: base mask
-    mask_year = (accident_df["date"].dt.year < 2023) & \
-                (congestion_df["date"].dt.year < 2023)
-
-    # Step 2: temporary dfs
-    acc_tmp = accident_df[mask_year].drop("date", axis=1)
-    cong_tmp = congestion_df[mask_year].drop("date", axis=1)
-
-    # Step 3: validity mask
-    mask_valid = ~(
-        acc_tmp.isna().any(axis=1)
-        | cong_tmp.isna().any(axis=1)
-        | (acc_tmp == 0).all(axis=1)
-    )
-
-    # Step 4: get indices of scenarios to keep
-    scenario_indices = acc_tmp.index[mask_valid].tolist()
-
-    # Now filter final dfs + A_traffics
-    accident_df_filtered = acc_tmp.loc[mask_valid]
-    congestion_df_filtered = cong_tmp.loc[mask_valid]
-    A_traffics_filtered = [A_traffics[i] for i in scenario_indices]
 
     # process accidents
-    accident_np = accident_df_filtered.to_numpy()
+    accident_np = accident_df.to_numpy()
     accident_counts = accident_np.sum(axis=1)
     P = accident_np / accident_counts[:, np.newaxis]
 
     # solve batch
     return batch_opt(
-        A_traffics_filtered, P, congestion_df_filtered, min_depots, max_depots, day, time, step
+        A_traffics, P, congestion_df, min_depots, max_depots, day, time, step
     )
 
 

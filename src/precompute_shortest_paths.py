@@ -51,32 +51,45 @@ def process_scenario(G, day, time, gas_stations):
 
     acc_path = f"processed_data/accident_tables/{tag}_accidents.csv"
     cong_path = f"processed_data/congestion_tables/{tag}_congestion.csv"
-    out_path = f"processed_data/A_traffics_{tag}"
 
-    accident_df = pd.read_csv(acc_path).drop("date", axis=1)
-    congestion_df = pd.read_csv(cong_path).drop("date", axis=1)
+    accident_df = pd.read_csv(acc_path)
+    congestion_df = pd.read_csv(cong_path)
 
-    to_drop = (
-        accident_df.isna().any(axis=1)
-        | congestion_df.isna().any(axis=1)
-        | (accident_df == 0).all(axis=1)
+    accident_df["date"] = pd.to_datetime(accident_df["date"])
+    congestion_df["date"] = pd.to_datetime(congestion_df["date"])
+
+    # Step 2: temporary dfs
+    acc_tmp = accident_df.drop("date", axis=1)
+    cong_tmp = congestion_df.drop("date", axis=1)
+
+    # Step 3: validity mask
+    mask_valid = ~(
+        acc_tmp.isna().any(axis=1)
+        | cong_tmp.isna().any(axis=1)
+        | (acc_tmp == 0).all(axis=1)
     )
 
-    accident_df = accident_df[~to_drop]
-    congestion_df = congestion_df[~to_drop]
+    # Now filter final dfs + A_traffics
+    accident_df_filtered = accident_df.loc[mask_valid].reset_index().drop('index', axis=1)
+    congestion_df_filtered = congestion_df.loc[mask_valid].reset_index().drop('index', axis=1)
 
-
-    print(f"  Computing A_traffics for {len(congestion_df)} scenarios...")
-    A_list = Parallel(n_jobs=-1, verbose=10)(
+    print(f"  Computing A_traffics for {len(congestion_df_filtered)} scenarios...")
+    A_list = Parallel(n_jobs=12, verbose=10)(
         delayed(compute_shortest_time)(G, row, gas_stations)
-        for _, row in congestion_df.iterrows()
+        for _, row in congestion_df_filtered.drop('date', axis=1).iterrows()
     )
 
     A = np.stack(A_list, axis=0)
 
     # Save result
-    print(f"  Saving to {out_path}")
-    np.save(out_path, A)
+    A_out_path = f"processed_data/filtered/A_traffics_{tag}_filtered"
+    accident_out_path = f"processed_data/filtered/{tag}_accidents_filtered"
+    congestion_out_path = f"processed_data/filtered/{tag}_congestion_filtered"
+
+    print(f"  Saving to processed_data/filtered/")
+    np.save(A_out_path, A)
+    accident_df_filtered.to_csv(accident_out_path)
+    congestion_df_filtered.to_csv(congestion_out_path)
 
     print(f"  ✔ Done: {tag}")
 
@@ -102,6 +115,8 @@ if __name__ == "__main__":
 
     for day in days:
         for time in times:
+            if day == "wd" and time == "early":
+                continue
             process_scenario(G, day, time, gas_stations)
 
     print("\n=== All combinations processed ===")
