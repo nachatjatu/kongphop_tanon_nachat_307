@@ -1,6 +1,5 @@
 cache/** filter=lfs diff=lfs merge=lfs -text
 results/** filter=lfs diff=lfs merge=lfs -text
-results/archives_2 filter=lfs diff=lfs merge=lfs -text
 results/model_1_raw.pickle filter=lfs diff=lfs merge=lfs -text
 results/model_2_raw.pickle filter=lfs diff=lfs merge=lfs -text
 processed_data/cache filter=lfs diff=lfs merge=lfs -text
