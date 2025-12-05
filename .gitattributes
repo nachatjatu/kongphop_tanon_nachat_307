@@ -5,8 +5,7 @@ results/model_1_raw.pickle filter=lfs diff=lfs merge=lfs -text
 results/model_2_raw.pickle filter=lfs diff=lfs merge=lfs -text
 results/archives filter=lfs diff=lfs merge=lfs -text
 processed_data/cache filter=lfs diff=lfs merge=lfs -text
-processed_data/congestion_tables filter=lfs diff=lfs merge=lfs -text
-processed_data/filtered filter=lfs diff=lfs merge=lfs -text
+processed_data/congestion_tables/* filter=lfs diff=lfs merge=lfs -text
 processed_data/merged_incidents.csv filter=lfs diff=lfs merge=lfs -text
 processed_data/bkk_incidents.csv filter=lfs diff=lfs merge=lfs -text
 processed_data/bkk_tmc_graph.graphml filter=lfs diff=lfs merge=lfs -text
