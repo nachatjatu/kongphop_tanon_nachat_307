@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
+EPSILON = 1e-6
 
 def init_model1(A_traffics, P, congestion_df, init_depots):
     warnings.simplefilter(action="ignore", category=RuntimeWarning)
@@ -26,7 +27,7 @@ def init_model1(A_traffics, P, congestion_df, init_depots):
     # Create a model using gurobi
     model = gp.Model("Accident coverage problem")
 
-    model.setParam('MIPGap', 0.03)
+    model.setParam('MIPGap', 0.01)
     model.setParam("Threads", 12)
 
     # Create variables
@@ -112,13 +113,15 @@ def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time, s
         print(f"Optimizing {day}, {time}, {num_depots} depots")
 
         depot_constr1.RHS = num_depots
+        model1.update()
         model1.optimize()
 
         if model1.Status == GRB.OPTIMAL:
         
             depot_constr2.RHS = num_depots
             for worse_case_constr2 in worst_case_constrs2:
-                worse_case_constr2.RHS = t1.X
+                worse_case_constr2.RHS = t1.X + EPSILON
+            model2.update()
 
             model2.optimize()
 
@@ -136,10 +139,10 @@ def batch_opt(A_traffics, P, congestion_df, min_depots, max_depots, day, time, s
                 "day": day,
                 "time": time,
                 "status": int(model1.status),
-                "objective": model1.ObjVal if model1.Status == GRB.OPTIMAL else None,
-                "y": y1.X.tolist(),
-                "X": X1.X.tolist(),
-                "response_time": float(t1.X),
+                "objective": None,
+                "y": None,
+                "X": None,
+                "response_time": None,
             }
     print(f"Completed optimization experiments for {day}, {time}")
     # for memory
