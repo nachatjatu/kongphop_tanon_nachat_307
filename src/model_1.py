@@ -26,7 +26,9 @@ def init_model(A, P, init_depots):
     y = model.addMVar(n_hospitals, vtype=GRB.BINARY, name="y")
 
     # Set objective
-    model.setObjective(((A * X) @ P).sum(), GRB.MINIMIZE)
+    P_broadcast = P[np.newaxis, :]
+    model.setObjective((A* X * P_broadcast).sum(), GRB.MINIMIZE)
+    # model.setObjective(((A * X) @ P).sum(), GRB.MINIMIZE)
 
     # Add constraint
     model.addConstr(X.sum(axis=0) == 1, "only one site")
@@ -62,12 +64,12 @@ def batch_opt(A_traffics, P, min_depots, max_depots, day, time, step):
 
 
 
-def run_single(day, time, min_depots, max_depots, G, gas_stations, step=1):
+def run_single(day, time, min_depots, max_depots, G, gas_stations, step=1, mode="train"):
     # load data
     tag = f'{day}_{time}'
     print(f"Loading accident and congestion data for {tag}")
-    accident_df = pd.read_csv(f"processed_data/train/{tag}_accidents_train.csv").drop('date', axis=1)
-    congestion_df = pd.read_csv(f"processed_data/train/{tag}_congestion_train.csv").drop('date', axis=1)
+    accident_df = pd.read_csv(f"processed_data/{mode}/{tag}_accidents_{mode}.csv").drop('date', axis=1)
+    congestion_df = pd.read_csv(f"processed_data/{mode}/{tag}_congestion_{mode}.csv").drop('date', axis=1)
 
     # process data
     print(f"Processing data")
@@ -110,13 +112,14 @@ def parse_args():
     parser.add_argument("--min_depots", type=int)
     parser.add_argument("--max_depots", type=int)
     parser.add_argument("--step", type=int)
+    parser.add_argument("--mode", type=str)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     # parse arguments
     args = parse_args()
-    min_depots, max_depots, step = args.min_depots, args.max_depots, args.step
+    min_depots, max_depots, step, mode = args.min_depots, args.max_depots, args.step, args.mode
 
     # load supplementary data
     with open("processed_data/bkk_augmented_graph.pickle", "rb") as f:
@@ -129,12 +132,12 @@ if __name__ == "__main__":
     for day in ["wd", "we"] :
         results[day] = {}
         for time in ["early", "morning", "midday", "evening", "night"]:
-            res = run_single(day, time, min_depots, max_depots, G, gas_stations, step=step)
+            res = run_single(day, time, min_depots, max_depots, G, gas_stations, step=step, mode=mode)
             results[day][time] = res
 
     # save files
     print("Jobs completed - now saving")
-    with open("results/model_1_raw.pickle", "wb") as f:
+    with open(f"results/model_1_raw_{mode}.pickle", "wb") as f:
         pickle.dump(results, f)
     print("Success!")
 
